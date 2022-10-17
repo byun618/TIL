@@ -1,8 +1,84 @@
 # 2022-10
 
-## 10/12
+# 10/17
 
----
+## Open intent:// url in react-native webview (Universal Link?, Intent Scheme)
+
+> ## 배경
+>
+> react-native webview에서 하나의 웹을 띄우고 그 웹에서 외부 앱을 연결 시키는 링크를 실행 시키는 상황이다.
+>
+> `originWhitelist와`, `onShouldStartLoadWithRequest`를 이용한다.
+
+회사에서 토스페이를 연동하고 있다. react-native에 결제 웹을 구현하여 띄우고, 거기서 토스페이를 연동하고 있다. 결제를 진행하다 보면 버튼을 누르면 토스 앱으로 연결 시키는 화면이 나오는데, ios에서는 아무런 조치를 하지 않아도 잘되지만, Android에서는 추가로 설정 해주어야하는것이 있다.  
+기본적으로 토스페이에서 ios는 https://, android는 intent:// 로 보낸다.(확인필요)  
+그러므로 명시적으로 intent://로 들어오는 요청을 정상적으로 우회하여 열어야 하는 것이다.
+
+> ## 해결 방법 (originWhitelist, onShouldStartLoadWithRequest)
+>
+> ### originWhiteList
+>
+> ```
+> 이동할 수 있는 링크들의 리스트이다. default는 http://*, https://* 이다.
+> ```
+>
+> ### onShouldStartLoadWithRequest
+>
+> ```
+> 웹뷰 요청을 커스텀할 수 있게하는 함수이다. true를 반환하면 로딩을 계속하고, false를 반환하면 로딩을 멈춘다.
+> ```
+>
+> 참고: https://reactnative.dev/docs/0.63/webview#originwhitelist, https://reactnative.dev/docs/0.63/webview#onshouldstartloadwithrequest
+
+아래와 같은 코드로 핸들링하였다.
+
+```js
+const isOpenableUrl = (url) => {
+  for (const scheme of originWhitelist) {
+    if (url.startsWith(scheme)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const onShouldStartLoadWithRequest = (request) => {
+  recordLog("[Payment] onShouldStartLoadWithRequest", { request });
+
+  try {
+    const { url } = request;
+
+    if (url.startsWith("about:blank")) {
+      return false;
+    }
+
+    if (Platform.OS === "ios" && !isOpenableUrl(url)) {
+      Linking.openURL(url);
+
+      return false;
+    }
+
+    if (Platform.OS === "android" && url.startsWith("intent://")) {
+      SendIntentAndroid.openAppWithUri(url).catch((err) => {
+        recordError(
+          err,
+          "[Payment] onShouldStartLoadWithRequest openAppWithUri Error"
+        );
+      });
+
+      return false;
+    }
+  } catch (err) {
+    recordError(err, "[Payment] onShouldStartLoadWithRequest Error");
+  }
+  return true;
+};
+```
+
+https://stackoverflow.com/questions/64169029/how-to-open-intent-link-in-browser-from-webview-on-react-native
+https://reactnative.dev/docs/0.63/webview#originwhitelist
+
+# 10/12
 
 ## Lazy Loading 과 Eager Loading (feat. Sequelize)
 
